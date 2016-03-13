@@ -47,11 +47,17 @@ class WebTrader(object):
         for v in self.account_config:
             if type(v) is int:
                 log.warn('配置文件的值最好使用双引号包裹，使用字符串类型，否则可能导致不可知的问题')
-
+    
+    def set_account_config(self,account_dict):
+        self.account_config = account_dict
+        
     def prepare(self, need_data):
         """登录的统一接口
-        :param need_data 登录所需数据"""
-        self.read_config(need_data)
+        :param need_data 登录所需数据, str type or dict type"""
+        if isinstance(need_data, dict):
+            self.set_account_config(need_data)
+        else:
+            self.read_config(need_data)
         self.autologin()
 
     def autologin(self):
@@ -94,9 +100,11 @@ class WebTrader(object):
     def __read_config(self):
         """读取 config"""
         self.config = helpers.file2dict(self.config_path)
+        #print('self.config=',self.config)
         self.global_config = helpers.file2dict(self.global_config_path)
+        #print('self.global_config=',self.global_config)
         self.config.update(self.global_config)
-
+        
     @property
     def balance(self):
         return self.get_balance()
@@ -104,10 +112,11 @@ class WebTrader(object):
     def get_balance(self):
         """获取账户资金状况"""
         return self.do(self.config['balance'])
-
+        
     @property
     def position(self):
         return self.get_position()
+
 
     def get_position(self):
         """获取持仓"""
