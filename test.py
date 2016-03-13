@@ -21,6 +21,12 @@ print(user.position)
 print('time4: ', datetime.datetime.now())
 print(user.entrust)
 print('end: ', datetime.datetime.now())
+
+
+user.buy('002556', price=12.15, amount=100)
+time.sleep(10)
+user.sell('002556', price=13.26, amount=100)
+
 """
 print(user.balance[0])
 def list2dict(list_nesting_dict):
