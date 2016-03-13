@@ -380,3 +380,61 @@ class YHTrader(WebTrader):
             symbole_dict=pos.pop(1)
             position_dict[symbole_dict['证券代码']]=self.list2dict(pos)
         return position_dict
+    
+    def trade_confirm(self,stock_code, expect_amount,last_holding_share,trade_type='0S'):
+        """止损卖出股票
+        :param stock_code: 股票代码
+        :param expect_amount: 希望交易数量
+        :param last_holding_share: 上一次持仓
+        :param trade_type: 交易类型： ‘0S' 卖，'0B' 买
+        """
+        if not self.positon or expect_amount<=0:
+            log.error("Can not fetch position info")
+            return 0
+        this_position=self.position
+        this_holding_share=self.position[code]['当前持仓']
+        difference=this_holding_share-last_holding_share
+        if difference==0:
+            if trade_type=='0S':
+                log.debug("Try to sell %s  %s, but Sell Nothing." % (expect_amount,stock_code))
+            elif trade_type=='0B':
+                log.debug("Try to buy %s  %s, but Buy Nothing." % (expect_amount,stock_code))
+            else:
+                pass
+            return 0
+        if trade_type=='0S':
+            if expect_amount==-difference:
+                log.debug("Try to sell %s  %s, and sell Successfully." % (expect_amount,stock_code))
+                return -1
+            elif expect_amount>-difference:
+                log.debug("Try to sell %s %s, but Partially sell %s ." % (expect_amount,stock_code,-difference))
+                return -(expect_amount+difference)
+            else:
+                pass
+                #return 3
+        elif trade_type=='0B':
+            if expect_amount==difference:
+                log.debug("Try to Buy %s  %s, and buy Successfully." % (expect_amount,stock_code))
+                return 1
+            elif expect_amount>difference:
+                log.debug("Try to buy %s %s, but Partially buy %s ." % (expect_amount,stock_code,difference))
+                return (expect_amount-difference)
+            else:
+                #log.debug("Try to buy %s %s, but buy %s actually(More). ." % (expect_amount,stock_code,difference))
+                #return 3
+                pass
+            
+    def post_trade_action(self,trade_result):
+        if abs(trade_result)==1:
+            pass
+        elif trade_result==0:
+            """reorder"""
+            pass
+        elif trade_result>=2:
+            """reorder to buy"""
+            pass
+        elif trade_result<=-2:
+            """reorder to sell"""
+            pass
+        else:
+            pass
