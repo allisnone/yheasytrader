@@ -27,6 +27,7 @@ class YHTrader(WebTrader):
         self.account_config = None
         self.s = None
         self.exchange_stock_account = dict()
+        self.time_stamp={'exit':0}
 
     def login(self, throw=False):
         print('login time0: ', datetime.datetime.now())
@@ -139,29 +140,38 @@ class YHTrader(WebTrader):
         )
         return self.__trade(stock_code, price, entrust_prop=entrust_prop, other=params)
     
-    def sell_to_exit(self, stock_code, exit_price, amount=0, volume=0, entrust_prop=0):
+    def sell_to_exit(self, stock_code, exit_price, exit_rate=None,delay=None):
         """止损卖出股票
         :param stock_code: 股票代码
         :param exit_price: 止损卖出价格
         :param amount: 卖出股数
-        :param volume: 卖出总金额 由 volume / price 取整， 若指定 amount 则此参数无效
-        :param entrust_prop: 委托类型，暂未实现，默认为限价委托
+        :param exit_rate: 止损比例 若指定 amount 则此参数无效
+        :param delay: 延时止损,秒 
         """
         if stock_code not in self.position.keys():
             return
-        available_share_to_sell=int(self.position[stock_code]['股份可用'])
+        exit_amount=int(self.position[stock_code]['股份可用'])
+        if exit_rate and exit_rate<1 and exit_rate>0:
+            exit_amount=int(exit_amount*exit_rate/100)*100
+        if exit_amount==0:
+            return
         last_close,realtime_price=self.get_realtime_stock(stock_code)
+        lowest_price=round(last_close*0.9,2)
         if realtime_price<exit_price:
-            log.debug('股票  %s 达到止损价格 : %s,止损退出  %s股' % (stock_code,exit_price,amount))
-            params = dict(
-                    self.config['sell'],
-                    bsflag='0S',  # 买入0B 卖出0S
-                    qty=min(amount,available_share_to_sell) if amount else available_share_to_sell
-            )
-            self.__trade(stock_code, last_close, entrust_prop=-1, other=params)
-        else:
-            pass
-
+            log.debug('股票  %s 达到止损价格 : %s,立即止损退出  %s股' % (stock_code,exit_price,amount))
+            if delay==None:
+                self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
+            else:
+                if self.time_stamp['exit'] ==0:
+                    exit_timestamp=1
+                    self.time_stamp['exit']=exit_timestamp
+                    log.debug('股票  %s 达到止损价格 : %s,延时  %秒' % (stock_code,exit_price,delay))
+                else:
+                    this_timestamp=1
+                    if (this_timestamp-self.time_stamp['exit'])>delay:
+                        log.debug('股票  %s 达到止损价格 : %s,延时%s秒，止损退出  %s股' % (stock_code,exit_price,delay,exit_amount))
+                        self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
+                
     def fundpurchase(self, stock_code, amount=0):
         """基金申购
         :param stock_code: 基金代码
@@ -255,12 +265,6 @@ class YHTrader(WebTrader):
             if type(check_data) == dict:
                 return check_data
         need_info = self.__get_trade_need_info(stock_code)
-        if entrust_prop==1:#主动即时买入，以涨停价买入
-            price=round(price*1.1,2)
-        elif entrust_prop==-1: #主动即时卖出，以跌停价卖
-            price=round(price*0.9,2)
-        else:
-            pass
         trade_params = dict(
                 other,
                 stockCode=stock_code,
