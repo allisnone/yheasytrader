@@ -27,7 +27,7 @@ class YHTrader(WebTrader):
         self.account_config = None
         self.s = None
         self.exchange_stock_account = dict()
-        self.time_stamp={'exit':0}
+        self.time_stamp={'exit_l':0,'exit_h':0}
 
     def login(self, throw=False):
         print('login time0: ', datetime.datetime.now())
@@ -140,11 +140,11 @@ class YHTrader(WebTrader):
         )
         return self.__trade(stock_code, price, entrust_prop=entrust_prop, other=params)
     
-    def sell_to_exit(self, stock_code, exit_price, exit_rate=0,delay=None):
+    def sell_to_exit(self, stock_code, exit_price, exit_type=0,exit_rate=0,delay=0):
         """止损卖出股票
         :param stock_code: 股票代码
         :param exit_price: 止损卖出价格
-        :param amount: 卖出股数
+        :param exit_type: 0, 止损退出；1,止盈退出
         :param exit_rate: 止损比例 若指定 amount 则此参数无效
         :param delay: 延时止损,秒 
         """
@@ -157,21 +157,90 @@ class YHTrader(WebTrader):
             return
         last_close,realtime_price=self.get_realtime_stock(stock_code)
         lowest_price=round(last_close*0.9,2)
-        if realtime_price<exit_price:
-            log.debug('股票  %s 达到止损价格 : %s,立即止损退出  %s股' % (stock_code,exit_price,amount))
-            if delay==None:
-                self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
-            else:
-                if self.time_stamp['exit'] ==0:
-                    exit_timestamp=1
-                    self.time_stamp['exit']=exit_timestamp
-                    log.debug('股票  %s 达到止损价格 : %s,延时  %秒' % (stock_code,exit_price,delay))
+        highest_price=round(last_close*1.1,2)
+        if exit_price<lowest_price or exit_price>highest_price:
+            return
+        this_timestamp=time.time()
+        if exit_type==0:#止损
+            if realtime_price<exit_price:
+                if delay==0:#即时止损
+                    log.debug('股票  %s 达到止损价格 : %s,立即止损退出  %s股' % (stock_code,exit_price,amount))
+                    self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
                 else:
-                    this_timestamp=1
-                    if (this_timestamp-self.time_stamp['exit'])>delay:
-                        log.debug('股票  %s 达到止损价格 : %s,延时%s秒，止损退出  %s股' % (stock_code,exit_price,delay,exit_amount))
-                        self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
-                        self.time_stamp['exit'] =0
+                    if self.time_stamp['exit_l'] ==0:#第一次达到止损价格
+                        self.time_stamp['exit_l']=this_timestamp
+                        log.debug('股票  %s 达到止损价格 : %s,延时  %秒' % (stock_code,exit_price,delay))
+                    else:
+                        if (this_timestamp-self.time_stamp['exit_l'])>delay:#延时确认止损
+                            log.debug('股票  %s 达到止损价格 : %s,延时%s秒，止损退出  %s股' % (stock_code,exit_price,delay,exit_amount))
+                            self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
+                            self.time_stamp['exit_l'] =0
+                        elif (this_timestamp-self.time_stamp['exit_l'])<=delay*0.5:
+                            if realtime_price<=(exit_price-0.6*(exit_price-lowest_price)):#快速下跌
+                                log.debug('股票  %s 达到止损价格 : %s,延时%s秒,但快速下跌，故止损退出  %s股' % (stock_code,exit_price,delay,exit_amount))
+                                self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
+                                self.time_stamp['exit_l'] =0
+                            else:
+                                pass
+                        else:
+                            pass
+            elif realtime_price>exit_price*1.013:
+                if delay and self.time_stamp['exit_l']!=0:
+                    if (this_timestamp-self.time_stamp['exit_l'])<=delay*0.5:#下探止损价格后，快速回升在止损价格之上
+                        self.time_stamp['exit_l'] =0
+                    else:
+                        pass
+            else:
+                pass
+        elif exit_type==1:#止盈
+            if delay==0:#即时止盈
+                if realtime_price>=exit_price:
+                    log.debug('股票  %s 达到止盈价格 : %s,立即止盈退出  %s股' % (stock_code,exit_price,amount))
+                    self.sell(stock_code, price=exit_price, amount=exit_amount, volume=0, entrust_prop=0)
+                else:
+                    pass
+            else:
+                if self.time_stamp['exit_h'] ==0:
+                    if realtime_price>=exit_price:
+                        self.time_stamp['exit_h']=this_timestamp
+                        log.debug('股票  %s 第一次 达到止盈价格 : %s,延时  %秒' % (stock_code,exit_price,delay))
+                    else:
+                        pass
+                else:
+                    if realtime_price>=(exit_price+0.6*(highest_price-exit_price)):#突破止盈价格后，快速强势，重新延时止盈
+                        if (this_timestamp-self.time_stamp['exit_h'])<delay*0.5:
+                            #log.debug('股票  %s 达到止损价格 : %s,延时%s秒,但快速下跌，故止损退出  %s股' % (stock_code,exit_price,delay,exit_amount))
+                            self.time_stamp['exit_h'] =this_timestamp
+                            exit_price=exit_price+0.6*(highest_price-exit_price)
+                        else:
+                            pass
+                    elif realtime_price>=exit_price:
+                        if (this_timestamp-self.time_stamp['exit_h'])>delay:#突破止盈价格后，长时间强势，重新延时止盈
+                            self.time_stamp['exit_h']=this_timestamp
+                        else:
+                            pass
+                    else:
+                        if (this_timestamp-self.time_stamp['exit_h'])<0.5*delay:
+                            if realtime_price<=exit_price*0.97:#突破止盈价格后，快速强势，重新延时止盈
+                                log.debug('股票  %s 达到止盈价格 : %s,尝试延时%s秒,但短时快速下跌，故止盈退出  %s股' % (stock_code,exit_price,delay,exit_amount))
+                                self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
+                                self.time_stamp['exit_h'] =0
+                            else:
+                                pass
+                        elif (this_timestamp-self.time_stamp['exit_h'])<delay:
+                            if realtime_price<=exit_price*0.95:#突破止盈价格后，快速强势，重新延时止盈
+                                log.debug('股票  %s 达到止盈价格 : %s后在%s秒内出现大幅下跌，故止盈退出  %s股' % (stock_code,exit_price,delay,exit_amount))
+                                self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
+                                self.time_stamp['exit_h'] =0
+                            else:
+                                pass
+                        else:
+                            log.debug('股票  %s 达到止盈价格 : %s,延时%s秒后回落，故止盈退出  %s股' % (stock_code,exit_price,delay,exit_amount))
+                            self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
+                            self.time_stamp['exit_h'] =0
+        else:
+            pass
+                
                 
     def fundpurchase(self, stock_code, amount=0):
         """基金申购
