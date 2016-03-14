@@ -140,7 +140,7 @@ class YHTrader(WebTrader):
         )
         return self.__trade(stock_code, price, entrust_prop=entrust_prop, other=params)
     
-    def sell_to_exit(self, stock_code, exit_price, exit_rate=None,delay=None):
+    def sell_to_exit(self, stock_code, exit_price, exit_rate=0,delay=None):
         """止损卖出股票
         :param stock_code: 股票代码
         :param exit_price: 止损卖出价格
@@ -151,7 +151,7 @@ class YHTrader(WebTrader):
         if stock_code not in self.position.keys():
             return
         exit_amount=int(self.position[stock_code]['股份可用'])
-        if exit_rate and exit_rate<1 and exit_rate>0:
+        if exit_rate and exit_rate<1 and exit_rate>0 and exit_amount!=100:
             exit_amount=int(exit_amount*exit_rate/100)*100
         if exit_amount==0:
             return
@@ -171,6 +171,7 @@ class YHTrader(WebTrader):
                     if (this_timestamp-self.time_stamp['exit'])>delay:
                         log.debug('股票  %s 达到止损价格 : %s,延时%s秒，止损退出  %s股' % (stock_code,exit_price,delay,exit_amount))
                         self.sell(stock_code, price=lowest_price, amount=exit_amount, volume=0, entrust_prop=0)
+                        self.time_stamp['exit'] =0
                 
     def fundpurchase(self, stock_code, amount=0):
         """基金申购
