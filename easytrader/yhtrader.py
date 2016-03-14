@@ -141,11 +141,11 @@ class YHTrader(WebTrader):
         return self.__trade(stock_code, price, entrust_prop=entrust_prop, other=params)
     
     def sell_to_exit(self, stock_code, exit_price, exit_type=0,exit_rate=0,delay=0):
-        """止损卖出股票
+        """止损止盈 卖出股票
         :param stock_code: 股票代码
         :param exit_price: 止损卖出价格
         :param exit_type: 0, 止损退出；1,止盈退出
-        :param exit_rate: 止损比例 若指定 amount 则此参数无效
+        :param exit_rate: 止损比例 ,若不指定，全部退出
         :param delay: 延时止损,秒 
         """
         if stock_code not in self.position.keys():
@@ -240,6 +240,36 @@ class YHTrader(WebTrader):
                             self.time_stamp['exit_h'] =0
         else:
             pass
+    
+    def sell_all_to_exit_now(self):
+        """一键即时清仓"""
+        if self.position:
+            for stock_code in self.position.keys():
+                log.debug('一键1清仓卖出股票  %s:' % (stock_code))
+                self.sell_to_exit(stock_code, exit_price=1000.0, exit_type=0, exit_rate=0, delay=0)
+        else:
+            pass
+        return
+    
+    def sell_at_time(self,stock_code,set_time):
+        """定时清仓"""
+        now_time=datetime.datetime.now()
+        if now_time>set_time:
+            log.debug('一键1清仓卖出股票  %s:' % (stock_code))
+            self.sell_to_exit(stock_code, exit_price=1000.0, exit_type=0, exit_rate=0, delay=0)
+        else:
+            pass
+        return
+    
+    def buy_at_time(self,stock_code,set_time):
+        """定时买入"""
+        now_time=datetime.datetime.now()
+        if now_time>set_time:
+            log.debug('定时买入股票  %s:' % (stock_code))
+            self.buy(stock_code, price, amount, volume, entrust_prop)
+        else:
+            pass
+        return
                 
                 
     def fundpurchase(self, stock_code, amount=0):
