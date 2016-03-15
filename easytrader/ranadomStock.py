@@ -6,9 +6,9 @@ def get_random_price(last_price,direction):
     rate=round(0.1*random.random()*random.choice(direction),4)
     #rate=random.uniform(0.1,-0.05)#0.10,-0.1)
     random_close=round(last_price*(1+rate),2)
-    print('last_price=',last_price)
-    print('rate=',rate)
-    print('random_close=',random_close)
+    #print('last_price=',last_price)
+    #print('rate=',rate)
+    #print('random_close=',random_close)
     return random_close
 
 def get_direction(count=100,pos_rate=0.5):
@@ -16,12 +16,12 @@ def get_direction(count=100,pos_rate=0.5):
     return di1
 
 def get_continue_close(last_price=10.0):
-    di=get_direction(count=100, pos_rate=0.51)
-    print(di)
+    di=get_direction(count=100, pos_rate=0.54)
+    #print(di)
     count=0
     direction=[-1,1]
     while True:
-        print('count=',count)
+        #print('count=',count)
         random_close=get_random_price(last_price,di)
         last_price=random_close
         count=count+1
@@ -32,7 +32,7 @@ def get_continue_close(last_price=10.0):
 
 j=0
 final_list=[]
-for i in range(1,100):
+for i in range(1,1000):
     last_price=10.0
     final_price=get_continue_close(last_price)
     print('final_price=',final_price)
