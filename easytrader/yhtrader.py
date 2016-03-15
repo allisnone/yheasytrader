@@ -110,7 +110,7 @@ class YHTrader(WebTrader):
         return True
 
     # TODO: 实现买入卖出的各种委托类型
-    def buy(self, stock_code, price, amount=0, volume=0, entrust_prop=0):
+    def buy0(self, stock_code, price, amount=0, volume=0, entrust_prop=0):
         """买入股票
         :param stock_code: 股票代码
         :param price: 买入价格
@@ -125,8 +125,38 @@ class YHTrader(WebTrader):
         )
         return self.__trade(stock_code, price, entrust_prop=entrust_prop, other=params)
 
-    def sell(self, stock_code, price, amount=0, volume=0, entrust_prop=0):
+    def sell0(self, stock_code, price, amount=0, volume=0, entrust_prop=0):
         """卖出股票
+        :param stock_code: 股票代码
+        :param price: 卖出价格
+        :param amount: 卖出股数
+        :param volume: 卖出总金额 由 volume / price 取整， 若指定 amount 则此参数无效
+        :param entrust_prop: 委托类型，暂未实现，默认为限价委托
+        """
+        params = dict(
+                self.config['sell'],
+                bsflag='0S',  # 买入0B 卖出0S
+                qty=amount if amount else volume // price
+        )
+        return self.__trade(stock_code, price, entrust_prop=entrust_prop, other=params)
+    
+    def buy(self, stock_code, price, amount=0, volume=0, entrust_prop=0):
+        """模拟买入股票
+        :param stock_code: 股票代码
+        :param price: 买入价格
+        :param amount: 买入股数
+        :param volume: 买入总金额 由 volume / price 取整， 若指定 price 则此参数无效
+        :param entrust_prop: 委托类型，暂未实现，默认为限价委托
+        """
+        params = dict(
+                self.config['buy'],
+                bsflag='0B',  # 买入0B 卖出0S
+                qty=amount if amount else volume // price // 100 * 100
+        )
+        return self.__trade(stock_code, price, entrust_prop=entrust_prop, other=params)
+
+    def sell(self, stock_code, price, amount=0, volume=0, entrust_prop=0):
+        """模拟卖出股票
         :param stock_code: 股票代码
         :param price: 卖出价格
         :param amount: 卖出股数
@@ -240,18 +270,19 @@ class YHTrader(WebTrader):
         else:
             pass
     
-    def sell_all_to_exit_now(self):
+    def sell_all_to_exit_now(self,sell_rate=0,set_time=None):
         """一键即时清仓
-        :param stock_code: 股票代码
-        :param exit_price: 止损卖出价格
+        :param sell_rate: 卖出比例
+        :param set_time: 卖出时间
         """
         if self.position:
+            if set_time==None: 
+                log.debug('一键即时卖出股票 ： %s, 比例:%s' % (self.position.keys(),'清仓' if sell_rate==0 else sell_rate))
+            else:
+                log.debug('一键定时卖出股票：  %s, 比例:%s' % (self.position.keys(),'清仓' if sell_rate==0 else sell_rate))
             for stock_code in self.position.keys():
-                last_close,realtime_price=self.get_realtime_stock(stock_code)
-                lowest_price=round(last_close*0.9,2)
-                highest_price=round(last_close*1.1,2)
-                log.debug('一键1清仓卖出股票  %s:' % (stock_code))
-                self.sell_to_exit(stock_code, lowest_price, last_close,realtime_price,exit_type=0, exit_rate=0, delay=0)
+                self.sell_stock_by_time(stock_code, sell_rate, set_time)
+                time.sleep(5)
         else:
             pass
         return
@@ -263,26 +294,30 @@ class YHTrader(WebTrader):
         """
         if stock_code not in self.position.keys():
             return 0
-        exit_amount=int(self.position[stock_code]['股份可用'])
-        if exit_rate and exit_rate<1 and exit_rate>0 and exit_amount>100:
-            exit_amount=int(exit_amount*exit_rate/100)*100
-        return exit_amount
+        sell_amount=int(self.position[stock_code]['股份可用'])
+        if sell_rate and sell_rate<1 and sell_rate>0 and exit_amount>100:
+            sell_amount=int(exit_amount*sell_rate/100)*100
+        return sell_amount
             
     def sell_stock_by_time(self,stock_code,sell_rate=0,set_time=None):
         """定时清仓某只股票
         :param stock_code: 股票代码
+        :param sell_rate: 卖出比例
         :param set_time: 卖出时间
         """
         if stock_code not in self.position.keys():
             return
-        exit_amount=self.get_sell_amount(stock_code, sell_rate)
+        sell_amount=self.get_sell_amount(stock_code, sell_rate)
         now_time=datetime.datetime.now()
-        if exit_amount and (set_time==None or (set_time!=none and now_time>set_time)):
-            log.debug('一键1清仓卖出股票  %s:' % (stock_code))
+        if sell_amount and (set_time==None or (set_time!=none and now_time>set_time)):
             last_close,realtime_price=self.get_realtime_stock(stock_code)
             lowest_price=round(last_close*0.9,2)
             highest_price=round(last_close*1.1,2)
-            self.sell(stock_code, lowest_price, exit_amount, volume=0, entrust_prop=0)
+            self.sell(stock_code, lowest_price, sell_amount, volume=0, entrust_prop=0)
+            if set_time==None: 
+                log.debug('即时卖出股票  %s, 数量%s股' % (stock_code,a_amount))
+            else:
+                log.debug('定时卖出股票  %s, 数量%s股' % (stock_code,a_amount))
         else:
             pass
         return
@@ -311,6 +346,7 @@ class YHTrader(WebTrader):
     def buy_stock_by_time(self,stock_code,buy_rate=0,set_time=None):
         """定时买入某只股票
         :param stock_code: 股票代码
+        :param buy_rate: 买出比例，默认全买
         :param set_time: datetime type, 买入时间
         """
         if user.balance:
