@@ -140,7 +140,7 @@ class YHTrader(WebTrader):
         )
         return self.__trade(stock_code, price, entrust_prop=entrust_prop, other=params)
     
-    def sell_to_exit(self, stock_code, exit_price, exit_type=0,exit_rate=0,delay=0):
+    def sell_to_exit(self, stock_code, exit_price, last_close,realtime_price,exit_type=0,exit_rate=0,delay=0):
         """止损止盈 卖出股票
         :param stock_code: 股票代码
         :param exit_price: 止损卖出价格
@@ -155,7 +155,6 @@ class YHTrader(WebTrader):
             exit_amount=int(exit_amount*exit_rate/100)*100
         if exit_amount==0:
             return
-        last_close,realtime_price=self.get_realtime_stock(stock_code)
         lowest_price=round(last_close*0.9,2)
         highest_price=round(last_close*1.1,2)
         if exit_price<lowest_price or exit_price>highest_price:
@@ -242,31 +241,58 @@ class YHTrader(WebTrader):
             pass
     
     def sell_all_to_exit_now(self):
-        """一键即时清仓"""
+        """一键即时清仓
+        :param stock_code: 股票代码
+        :param exit_price: 止损卖出价格
+        """
         if self.position:
             for stock_code in self.position.keys():
+                last_close,realtime_price=self.get_realtime_stock(stock_code)
+                lowest_price=round(last_close*0.9,2)
+                highest_price=round(last_close*1.1,2)
                 log.debug('一键1清仓卖出股票  %s:' % (stock_code))
-                self.sell_to_exit(stock_code, exit_price=1000.0, exit_type=0, exit_rate=0, delay=0)
+                self.sell_to_exit(stock_code, lowest_price, last_close,realtime_price,exit_type=0, exit_rate=0, delay=0)
         else:
             pass
         return
     
-    def sell_at_time(self,stock_code,set_time):
-        """定时清仓"""
+    def sell_stock_by_time(self,stock_code,set_time=None):
+        """定时清仓某只股票
+        :param stock_code: 股票代码
+        :param set_time: 卖出时间
+        """
+        if stock_code not in self.position.keys():
+            return
+        exit_amount=int(self.position[stock_code]['股份可用'])
         now_time=datetime.datetime.now()
-        if now_time>set_time:
+        if set_time==None or (set_time!=none and now_time>set_time):
             log.debug('一键1清仓卖出股票  %s:' % (stock_code))
-            self.sell_to_exit(stock_code, exit_price=1000.0, exit_type=0, exit_rate=0, delay=0)
+            last_close,realtime_price=self.get_realtime_stock(stock_code)
+            lowest_price=round(last_close*0.9,2)
+            highest_price=round(last_close*1.1,2)
+            self.sell(stock_code, lowest_price, exit_amount, volume, entrust_prop)
         else:
             pass
         return
     
-    def buy_at_time(self,stock_code,set_time):
-        """定时买入"""
+    def buy_stock_by_time(self,stock_code,set_time=None):
+        """定时买入某只股票
+        :param stock_code: 股票代码
+        :param set_time: 买入时间
+        """
+        if user.balance:
+            return
+        a_fund=user.balance['可用资金']
+        last_close,realtime_price=self.get_realtime_stock(stock_code)
+        lowest_price=round(last_close*0.9,2)
+        highest_price=round(last_close*1.1,2)
+        a_amount=int((a_fund/(realtime_price+0.5*(highest_price-realtime_price)))/100)*100
+        if a_amount:
+            return
         now_time=datetime.datetime.now()
-        if now_time>set_time:
+        if set_time==None or (set_time!=none and now_time>set_time):
             log.debug('定时买入股票  %s:' % (stock_code))
-            self.buy(stock_code, price, amount, volume, entrust_prop)
+            self.buy(stock_code, highest_price, a_amount, volume=0, entrust_prop=0)
         else:
             pass
         return
