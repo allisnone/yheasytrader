@@ -4,11 +4,7 @@ import random,math
 def get_random_price(last_price,direction):
     #direction=[-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1]
     rate=round(0.1*random.random()*random.choice(direction),4)
-    #rate=random.uniform(0.1,-0.05)#0.10,-0.1)
     random_close=round(last_price*(1+rate),2)
-    #print('last_price=',last_price)
-    #print('rate=',rate)
-    #print('random_close=',random_close)
     return random_close
 
 def get_direction(count=100,pos_rate=0.5):
@@ -83,6 +79,11 @@ def get_random_normal(u=0.0):
         rate_v=rate_v/abs(rate_v)*0.1
     rate_v=round(rate_v*100.0,2)
     return rate_v
+
+def get_random_avr():
+    """获取符合均匀分布的涨幅比例,值在 -0.1~0.1之间
+    """
+    return round(-0.1+0.2*random.random(),4)
 
 get_average()
     
