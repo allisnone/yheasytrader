@@ -291,13 +291,23 @@ class YHTrader(WebTrader):
         """获取可以卖出的股份数
         :param stock_code: 股票代码
         :param sell_rate: 卖出比例，默认全卖
+        :return: 返回可以卖出的数量
         """
-        if stock_code not in self.position.keys():
-            return 0
-        sell_amount=int(self.position[stock_code]['股份可用'])
-        if sell_rate and sell_rate<1 and sell_rate>0 and exit_amount>100:
-            sell_amount=int(exit_amount*sell_rate/100)*100
+        if stock_code not in self.position.keys():#不是持仓股票
+            return -1
+        sell_amount=0
+        avl_amount=int(self.position[stock_code]['股份可用'])
+        if avl_amount>0:#有可卖股票数量
+            last_close,realtime_price,volume,highest,lowest=self.get_realtime_stock(stock_code)
+            if volume>0:#
+                if sell_rate and sell_rate<1 and sell_rate>0:
+                    sell_amount=int(avl_amount*sell_rate/100)*100
+            else:#停牌或者异常
+                sell_amount=0
+        else:#无可卖股票数量
+            pass
         return sell_amount
+        #return sell_amount,is_stop_trade
             
     def sell_stock_by_time(self,stock_code,sell_rate=0,set_time=None):
         """定时清仓某只股票
@@ -305,22 +315,23 @@ class YHTrader(WebTrader):
         :param sell_rate: 卖出比例
         :param set_time: 卖出时间
         """
-        if stock_code not in self.position.keys():
+        sell_amount,is_stop_trade=self.get_sell_amount(stock_code, sell_rate)
+        if sell_amount<=0:
             return
-        sell_amount=self.get_sell_amount(stock_code, sell_rate)
-        now_time=datetime.datetime.now()
-        if sell_amount and (set_time==None or (set_time!=none and now_time>set_time)):
-            last_close,realtime_price=self.get_realtime_stock(stock_code)
-            lowest_price=round(last_close*0.9,2)
-            highest_price=round(last_close*1.1,2)
-            self.sell(stock_code, lowest_price, sell_amount, volume=0, entrust_prop=0)
-            if set_time==None: 
-                log.debug('即时卖出股票  %s, 数量%s股' % (stock_code,a_amount))
-            else:
-                log.debug('定时卖出股票  %s, 数量%s股' % (stock_code,a_amount))
         else:
-            pass
-        return
+            now_time=datetime.datetime.now()
+            if (set_time==None or (set_time!=none and now_time>set_time)):
+                last_close,realtime_price=self.get_realtime_stock(stock_code)
+                lowest_price=round(last_close*0.9,2)
+                highest_price=round(last_close*1.1,2)
+                self.sell(stock_code, lowest_price, sell_amount, volume=0, entrust_prop=0)
+                if set_time==None: 
+                    log.debug('即时卖出股票  %s, 数量%s股' % (stock_code,a_amount))
+                else:
+                    log.debug('定时卖出股票  %s, 数量%s股' % (stock_code,a_amount))
+                return
+            else:
+                return
     
     def get_buy_amount(self,stock_code,buy_price=0,buy_rate=0):
         """获取可以买入的股份数
@@ -329,19 +340,24 @@ class YHTrader(WebTrader):
         :param buy_rate: 买出比例，默认全买
         """
         if '可用资金' not in self.balance.keys():
-            return 0
+            return -1
         a_fund=self.balance['可用资金']
         if buy_rate and buy_rate<1 and buy_rate>0:
             a_fund=a_fund*buy_rate 
-        last_close,realtime_price=self.get_realtime_stock(stock_code)
-        lowest_price=round(last_close*0.9,2)
-        highest_price=round(last_close*1.1,2)
-        if buy_price:
-            realtime_price=buy_price
+        last_close,realtime_price,volume,highest,lowest=self.get_realtime_stock(stock_code)
+        if a_fund<lowest*100 or volume<=0:
+            return 0
         else:
-            realtime_price=realtime_price+0.5*(highest_price-realtime_price)
-        a_amount=int((a_fund/realtime_price)/100)*100
-        return a_amount
+            f_buy_price=realtime_price
+            if buy_price<=0:
+                f_buy_price=buy_price
+            else:
+                #f_buy_price=realtime_price+0.5*(highest_price-realtime_price)
+                f_buy_price=highest
+            a_amount=0
+            if f_buy_price:
+                a_amount=int((a_fund/f_buy_price)/100)*100
+            return a_amount
     
     def buy_stock_by_time(self,stock_code,buy_rate=0,set_time=None):
         """定时买入某只股票
@@ -351,8 +367,8 @@ class YHTrader(WebTrader):
         """
         if user.balance:
             return
-        a_amount=self.get_buy_amount(stock_code,buy_price,buy_rate=0)
-        if a_amount:
+        a_amount,highest_price,lowest_price=self.get_buy_amount(stock_code,buy_price,buy_rate=0)
+        if a_amount<=0:
             return
         if set_time==None or (set_time!=none and datetime.datetime.now()>set_time):
             if set_time==None: 
@@ -442,7 +458,9 @@ class YHTrader(WebTrader):
         return True
     
     def get_realtime_stock(self,stock_code):
-        return last_close,realtime_price
+        lowest_price=round(last_close*0.9,2)
+        highest_price=round(last_close*1.1,2)
+        return last_close,realtime_price,volume,highest,lowest
     
     def __trade(self, stock_code, price, entrust_prop, other):
         """
