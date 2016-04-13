@@ -10,6 +10,7 @@ import requests
 
 from . import helpers
 from .webtrader import WebTrader, NotLoginError
+from test.test_dummy_thread import DELAY
 
 log = helpers.get_logger(__file__)
 
@@ -270,6 +271,7 @@ class YHTrader(WebTrader):
         else:
             pass
     
+    
     def sell_all_to_exit_now(self,sell_rate=0,set_time=None):
         """一键即时清仓
         :param sell_rate: 卖出比例
@@ -286,6 +288,39 @@ class YHTrader(WebTrader):
         else:
             pass
         return
+    
+    
+    def sell_stock_by_low(self,stock_code,exit_price,realtime_price,sell_rate=0,delay=True,set_time=None,time_type='later'):
+        """定价止损推出
+        :param stock_code: 股票代码
+        :param exit_price: 推出价格
+        :param realtime_price: 实时价格
+        :param sell_rate: 卖出比例
+        :param set_time: 卖出时间
+        :param delay: 是否认已经延时
+        """
+        if realtime_price<exit_price and delay:
+            self.sell_stock_by_time(stock_code, sell_rate,set_time,time_type)
+        else:
+            pass
+        return
+    
+        
+    def buy_stock_by_high(self,stock_code,high_price,realtime_price,buy_rate=0,delay=True,set_time=None,time_type='later'):
+        """定价追高买入某只股票
+        :param stock_code: 股票代码
+        :param high_price: 追高买入价格,通常是压力位
+        :param realtime_price: 实时价格
+        :param buy_rate: 买入比例 
+        :param set_time: 卖出时间
+        :param delay: 是否认已经延时
+        """
+        if realtime_price>high_price and delay:
+            self.buy_stock_by_time(stock_code, buy_rate,set_time,time_type)
+        else:
+            pass
+        return
+    
     
     def get_sell_amount(self,stock_code,sell_rate=0):
         """获取可以卖出的股份数
@@ -309,7 +344,7 @@ class YHTrader(WebTrader):
         return sell_amount
         #return sell_amount,is_stop_trade
             
-    def sell_stock_by_time(self,stock_code,sell_rate=0,set_time=None):
+    def sell_stock_by_time(self,stock_code,sell_rate=0,set_time=None,time_type='later'):
         """定时清仓某只股票
         :param stock_code: 股票代码
         :param sell_rate: 卖出比例
@@ -317,10 +352,10 @@ class YHTrader(WebTrader):
         """
         sell_amount,is_stop_trade=self.get_sell_amount(stock_code, sell_rate)
         if sell_amount<=0:
-            return
+            return -1
         else:
-            now_time=datetime.datetime.now()
-            if (set_time==None or (set_time!=none and now_time>set_time)):
+            if set_time==None or (set_time!=none and time_type=='later' and datetime.datetime.now()>set_time
+                                  ) or (set_time!=none and time_type=='early' and datetime.datetime.now()<set_time):
                 last_close,realtime_price=self.get_realtime_stock(stock_code)
                 lowest_price=round(last_close*0.9,2)
                 highest_price=round(last_close*1.1,2)
@@ -328,10 +363,10 @@ class YHTrader(WebTrader):
                 if set_time==None: 
                     log.debug('即时卖出股票  %s, 数量%s股' % (stock_code,a_amount))
                 else:
-                    log.debug('定时卖出股票  %s, 数量%s股' % (stock_code,a_amount))
-                return
+                    log.debug('定时于  %s 卖出股票  %s, 数量%s股' % (set_time,stock_code,a_amount))
+                return 1
             else:
-                return
+                return 0
     
     def get_buy_amount(self,stock_code,buy_price=0,buy_rate=0):
         """获取可以买入的股份数
@@ -359,26 +394,25 @@ class YHTrader(WebTrader):
                 a_amount=int((a_fund/f_buy_price)/100)*100
             return a_amount
     
-    def buy_stock_by_time(self,stock_code,buy_rate=0,set_time=None):
+    def buy_stock_by_time(self,stock_code,buy_rate=0,set_time=None,time_type='later'):
         """定时买入某只股票
         :param stock_code: 股票代码
         :param buy_rate: 买出比例，默认全买
         :param set_time: datetime type, 买入时间
         """
-        if user.balance:
-            return
         a_amount,highest_price,lowest_price=self.get_buy_amount(stock_code,buy_price,buy_rate=0)
         if a_amount<=0:
-            return
-        if set_time==None or (set_time!=none and datetime.datetime.now()>set_time):
+            return -1
+        if set_time==None or (set_time!=none and time_type=='later' and datetime.datetime.now()>set_time
+                                  ) or (set_time!=none and time_type=='early' and datetime.datetime.now()<set_time):
+            self.buy(stock_code, highest_price, a_amount, volume=0, entrust_prop=0)
             if set_time==None: 
                 log.debug('即时买入股票  %s, 数量%s股' % (stock_code,a_amount))
             else:
-                log.debug('定时买入股票  %s, 数量%s股' % (stock_code,a_amount))
-            self.buy(stock_code, highest_price, a_amount, volume=0, entrust_prop=0)
+                log.debug('定时于 %s 买入股票  %s, 数量%s股' % (set_time,stock_code,a_amount))
+            return 1
         else:
-            pass
-        return
+            return 0
                 
                 
     def fundpurchase(self, stock_code, amount=0):
