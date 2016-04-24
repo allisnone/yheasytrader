@@ -10,7 +10,6 @@ import requests
 
 from . import helpers
 from .webtrader import WebTrader, NotLoginError
-from test.test_dummy_thread import DELAY
 
 log = helpers.get_logger(__file__)
 
